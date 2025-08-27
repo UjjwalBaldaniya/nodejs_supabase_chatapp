@@ -3,19 +3,31 @@ import { AuthenticatedRequest } from "../middlewares/authMiddleware";
 import { ApiError } from "../utils/ApiError";
 import { asyncHandler } from "../utils/asyncHandler";
 
-// Get all messages
 const getMessages = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
+    const chatId = (req.query.chatId || req.body.chatId) as string;
+    if (!chatId) throw new ApiError(400, "chatId is required");
+
+    const { data: chat, error: chatErr } = await req.supabase
+      .from("chats")
+      .select("*")
+      .eq("id", chatId)
+      .single();
+
+    if (chatErr || !chat) throw new ApiError(404, "Chat not found");
+    if (chat.user1 !== req.user.id && chat.user2 !== req.user.id)
+      throw new ApiError(403, "Not authorized");
+
     const { data, error } = await req.supabase
       .from("messages")
       .select("*")
-      .order("created_at", { ascending: true })
-      .limit(50);
+      .eq("chat_id", chatId)
+      .order("created_at", { ascending: true });
 
     if (error)
       throw new ApiError(500, "Error fetching messages", [error.message]);
 
-    res.status(200).json({
+    res.json({
       statusCode: 200,
       data: { messages: data },
       message: "Messages fetched successfully",
@@ -23,21 +35,28 @@ const getMessages = asyncHandler(
   }
 );
 
-// Create a new message
 const createMessage = asyncHandler(
   async (req: AuthenticatedRequest, res: Response) => {
-    const { content } = req.body;
-    const { id: user_id } = req.user;
+    const { content, chatId } = req.body;
+    const user_id = req.user.id;
 
-    if (!user_id || !content) {
-      throw new ApiError(400, "user_id and content are required");
-    }
+    if (!chatId || !content)
+      throw new ApiError(400, "chatId and content are required");
+
+    const { data: chat, error: chatErr } = await req.supabase
+      .from("chats")
+      .select("*")
+      .eq("id", chatId)
+      .single();
+    if (chatErr || !chat) throw new ApiError(404, "Chat not found");
+    if (chat.user1 !== user_id && chat.user2 !== user_id)
+      throw new ApiError(403, "Not authorized");
 
     const { data, error } = await req.supabase
       .from("messages")
-      .insert([{ user_id, content }])
+      .insert([{ chat_id: chatId, user_id, content }])
       .select()
-      .single(); // Fetch the inserted row directly
+      .single();
 
     if (error)
       throw new ApiError(500, "Error creating message", [error.message]);

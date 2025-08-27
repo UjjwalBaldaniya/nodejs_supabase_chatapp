@@ -21,9 +21,13 @@ app.get("/", (_req, res) => {
 
 // routes import
 import messageRouter from "./routes/messages.routes";
+import chatRouter from "./routes/chats.routes";
+import profileRouter from "./routes/profiles.routes";
 
 // route declaration
-app.use("/messages", messageRouter);
+app.use("/api/v1/messages", messageRouter);
+app.use("/api/v1/chat", chatRouter);
+app.use("/api/v1/profile", profileRouter);
 
 app.listen(port, () => {
   console.log(`Server running on http://localhost:${port}`);
